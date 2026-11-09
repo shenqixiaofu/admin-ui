@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# 任务工作区（如果在本仓库里跑 audit 产生的）
+.oil-ui/
