@@ -21,7 +21,7 @@ VIEW_DIRS = ('views', 'pages', 'screens')
 # 四态：只看有没有相关迹象。宁可少报，不要误报。
 SIG = {
     '加载': r'loading|isLoading|pending|skeleton|骨架|Spin|Loader',
-    '空态': r'暂无|没有数据|没有匹配|isEmpty|noData|empty[-_]?state|length\s*===?\s*0|!\w+\.length',
+    '空态': r'暂无|暂未|还没有|尚未|没有数据|没有匹配|isEmpty|noData|empty[-_]?state|length\s*===?\s*0|!\w+\.length',
     '出错': r'catch\s*\(|onError|\.error\b|错误|失败|ErrorState|errorState',
     '权限': r'权限|permission|forbidden|403|无权限|unauthorized',
 }
@@ -103,7 +103,12 @@ def main():
         exempt = bool(EXEMPT.search(f.stem)) or is_layout
         row['exempt'] = exempt
         row['layout'] = is_layout
+        # 不渲染集合的页面谈不上空态：纯表单/配置页永远不会有「没有数据」这一态
+        row['has_list'] = bool(re.search(r'v-for|\w+\.map\(', merged))
         for k, pat in SIG.items():
+            if k == '空态' and not row['has_list']:
+                row[k] = None
+                continue
             ok = bool(re.search(pat, merged, re.I))
             row[k] = ok
             if not ok and not exempt:
@@ -158,7 +163,9 @@ def main():
     print(f"{'页面':<{w}}  {'加载':^5}{'空态':^5}{'出错':^5}{'权限':^5} {'行数':>5} 子组件")
     print('-' * (w + 36))
     for p in result['pages']:
-        marks = ''.join(('  ✓  ' if p[k] else ('  —  ' if p['exempt'] else '  ✗  ')) for k in SIG)
+        # None = 该态对这个页面不适用（没列表就没有空态）
+        marks = ''.join(('  —  ' if (p[k] is None or p['exempt']) else ('  ✓  ' if p[k] else '  ✗  '))
+                        for k in SIG)
         name = p['file']
         if len(name) > w:
             name = '…' + name[-(w - 1):]
