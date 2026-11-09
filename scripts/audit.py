@@ -29,9 +29,9 @@ SIG = {
 # 不需要四态的页面：登录、404、纯跳转
 EXEMPT = re.compile(r'login|signin|sign_in|404|not[-_]?found|error[-_]?page|redirect', re.I)
 
-# 布局外壳：含 router-view / outlet / slot 的，不是数据页面
-LAYOUT_SIG = re.compile(r'<[Rr]outer-?[Vv]iew|<Outlet|<slot|Layout|Shell', re.I)
-LAYOUT_NAME = re.compile(r'layout|shell|frame|app$', re.I)
+# 布局外壳：只认真正的路由出口。<slot> 太宽泛 —— 任何用了具名插槽的页面都会命中
+LAYOUT_SIG = re.compile(r'<[Rr]outer-?[Vv]iew|<Outlet|<[A-Z]\w*Layout[\s/>]', re.I)
+LAYOUT_NAME = re.compile(r'^(?:\w*)?(?:layout|shell)$', re.I)
 
 
 def iter_files(root: pathlib.Path, suffixes):
