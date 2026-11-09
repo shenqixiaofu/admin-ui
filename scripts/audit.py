@@ -79,9 +79,10 @@ def main():
 
     # 业务组件池：状态经常写在 view 的子组件里，只看 view 会假阴性
     comp_files = [p for p in iter_files(root, CODE) if 'components' in p.parts]
-    # 逻辑池：错误处理通常在 composables / hooks 里，store 是全局的不并入
+    # 逻辑池：错误处理通常在 composables / hooks / logic 里，store 是全局的不并入。
+    # logic 是 nfc-stamp 的约定（views/admin/logic/useXxx.js），漏掉会把整页的 try/catch 判成缺失。
     hook_files = [p for p in iter_files(root, ('.js', '.ts', '.mjs'))
-                  if any(x in p.parts for x in ('composables', 'hooks'))]
+                  if any(x in p.parts for x in ('composables', 'hooks', 'logic'))]
 
     result = {'root': str(root), 'pages': [], 'global': {}}
     miss = collections.Counter()
@@ -92,8 +93,17 @@ def main():
         # 找同名子组件目录（components/**/logs/ 对应 Logs.vue）
         kws = {f.stem.lower(), f.stem.lower() + 's', f.stem.lower().rstrip('s')}
         extra = [p for p in comp_files if any(k in {x.lower() for x in p.parts} for k in kws)]
-        # 找同名 composable（useHome.js 对应 Home.vue）
-        hooks = [p for p in hook_files if p.stem.lower() in {f'use{stem}', stem, f'use{stem}s'}]
+        # 找页面用的 composable，两条路都要走：
+        # 1) 按名字猜（Home.vue → useHome.js），覆盖常见约定
+        # 2) 按页面里实际 import 的路径找 —— Settings.vue 引的是 useAdminSettings.js，
+        #    名字猜不出来，可 try/catch 全在里面
+        hook_set = {p for p in hook_files if p.stem.lower() in {f'use{stem}', stem, f'use{stem}s'}}
+        for spec in re.findall(r'''from\s+['"]([^'"]+)['"]''', own):
+            if not any(x in spec for x in ('composables', 'hooks', 'logic')):
+                continue
+            tail = spec.rsplit('/', 1)[-1]
+            hook_set |= {p for p in hook_files if p.stem == tail}
+        hooks = sorted(hook_set)
         merged = own + '\n' + '\n'.join(read(p) for p in extra + hooks)
 
         row = {'file': str(f.relative_to(root)), 'lines': len(own.splitlines()),
