@@ -78,8 +78,10 @@ def main():
         sys.exit(0)
 
     # 业务组件池：状态经常写在 view 的子组件里，只看 view 会假阴性
-    comp_dirs = [p for p in root.rglob('*') if p.is_dir() and 'components' in p.parts and p.name != 'ui']
     comp_files = [p for p in iter_files(root, CODE) if 'components' in p.parts]
+    # 逻辑池：错误处理通常在 composables / hooks 里，store 是全局的不并入
+    hook_files = [p for p in iter_files(root, ('.js', '.ts', '.mjs'))
+                  if any(x in p.parts for x in ('composables', 'hooks'))]
 
     result = {'root': str(root), 'pages': [], 'global': {}}
     miss = collections.Counter()
@@ -90,10 +92,12 @@ def main():
         # 找同名子组件目录（components/**/logs/ 对应 Logs.vue）
         kws = {f.stem.lower(), f.stem.lower() + 's', f.stem.lower().rstrip('s')}
         extra = [p for p in comp_files if any(k in {x.lower() for x in p.parts} for k in kws)]
-        merged = own + '\n' + '\n'.join(read(p) for p in extra)
+        # 找同名 composable（useHome.js 对应 Home.vue）
+        hooks = [p for p in hook_files if p.stem.lower() in {f'use{stem}', stem, f'use{stem}s'}]
+        merged = own + '\n' + '\n'.join(read(p) for p in extra + hooks)
 
         row = {'file': str(f.relative_to(root)), 'lines': len(own.splitlines()),
-               'subs': len(extra)}
+               'subs': len(extra), 'hooks': len(hooks)}
         # 布局外壳与登录页不需要四态
         is_layout = bool(LAYOUT_SIG.search(own)) or bool(LAYOUT_NAME.search(f.stem))
         exempt = bool(EXEMPT.search(f.stem)) or is_layout
